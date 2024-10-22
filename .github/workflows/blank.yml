@@ -1,0 +1,42 @@
+name: Tag Check and Deploy
+
+on:
+  push:
+    tags:
+      - 'arelease-*'
+
+jobs:
+  check-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Check if tag was created from devops branch
+        id: tag-check
+        run: |
+          # Get the branch/tag that triggered the workflow
+          REF_NAME=$(echo "${GITHUB_REF}" | awk -F'/' '{print $3}')
+          TAG_NAME=${GITHUB_REF##*/}
+          
+          # Get the commit SHA for the tag
+          TAG_COMMIT_SHA=$(git rev-parse $TAG_NAME)
+
+          # Check the branch from which the tag was created
+          BRANCH_NAME=$(git branch --contains $TAG_COMMIT_SHA | grep devops || echo "")
+          
+          echo "Tag Name: ${TAG_NAME}"
+          echo "Branch Name: ${BRANCH_NAME}"
+          
+          if [[ "$BRANCH_NAME" != "devops" ]]; then
+            echo "Tag $TAG_NAME is not from the devops branch."
+            exit 1
+          fi
+
+      - name: Deployment Step
+        if: success() # Proceed only if the previous check passes
+        run: echo "Proceeding with deployment for tag ${GITHUB_REF##*/}"
+
+      - name: Fail Workflow if Tag Check Fails
+        if: failure()
+        run: echo "Tag check failed. Workflow terminated."
